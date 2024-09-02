@@ -128,22 +128,26 @@ export default Canister({
   }),
 
   // Create a new executor
-  createExecutor: update([ExecutorPayload], Result(Executor, text), (payload) => {
-    if (!payload.name || !payload.contact) {
-      return Err("Name and contact are required.");
+  createExecutor: update(
+    [ExecutorPayload],
+    Result(Executor, text),
+    (payload) => {
+      if (!payload.name || !payload.contact) {
+        return Err("Name and contact are required.");
+      }
+
+      const id = uuidv4();
+      const executor = {
+        id,
+        name: payload.name,
+        contact: payload.contact,
+        createdAt: ic.time(),
+      };
+
+      executorsStorage.insert(id, executor);
+      return Ok(executor);
     }
-
-    const id = uuidv4();
-    const executor = {
-      id,
-      name: payload.name,
-      contact: payload.contact,
-      createdAt: ic.time(),
-    };
-
-    executorsStorage.insert(id, executor);
-    return Ok(executor);
-  }),
+  ),
 
   // Create a new will
   createWill: update([WillPayload], Result(Will, text), (payload) => {
@@ -197,47 +201,55 @@ export default Canister({
   }),
 
   // Add a beneficiary to a will
-  addBeneficiary: update([BeneficiaryPayload], Result(Null, text), (payload) => {
-    const willOpt = willsStorage.get(payload.willId);
-    if ("None" in willOpt) {
-      return Err("Will not found.");
+  addBeneficiary: update(
+    [BeneficiaryPayload],
+    Result(Null, text),
+    (payload) => {
+      const willOpt = willsStorage.get(payload.willId);
+      if ("None" in willOpt) {
+        return Err("Will not found.");
+      }
+
+      const will = willOpt.Some;
+
+      const beneficiaryId = uuidv4();
+      const beneficiary = {
+        id: beneficiaryId,
+        willId: payload.willId,
+        name: payload.name,
+        share: payload.share,
+        createdAt: ic.time(),
+      };
+
+      will.beneficiaries.push(beneficiary);
+      willsStorage.insert(payload.willId, will);
+      beneficiariesStorage.insert(beneficiaryId, beneficiary);
+      return Ok(null);
     }
-
-    const will = willOpt.Some;
-
-    const beneficiaryId = uuidv4();
-    const beneficiary = {
-      id: beneficiaryId,
-      willId: payload.willId,
-      name: payload.name,
-      share: payload.share,
-      createdAt: ic.time(),
-    };
-
-    will.beneficiaries.push(beneficiary);
-    willsStorage.insert(payload.willId, will);
-    beneficiariesStorage.insert(beneficiaryId, beneficiary);
-    return Ok(null);
-  }),
+  ),
 
   // Assign an executor to a will
-  assignExecutor: update([AssignExecutorPayload], Result(Null, text), (payload) => {
-    const willOpt = willsStorage.get(payload.willId);
-    if ("None" in willOpt) {
-      return Err("Will not found.");
+  assignExecutor: update(
+    [AssignExecutorPayload],
+    Result(Null, text),
+    (payload) => {
+      const willOpt = willsStorage.get(payload.willId);
+      if ("None" in willOpt) {
+        return Err("Will not found.");
+      }
+
+      const will = willOpt.Some;
+
+      const executorOpt = executorsStorage.get(payload.executorId);
+      if ("None" in executorOpt) {
+        return Err("Executor not found.");
+      }
+
+      will.executorId = payload.executorId;
+      willsStorage.insert(payload.willId, will);
+      return Ok(null);
     }
-
-    const will = willOpt.Some;
-
-    const executorOpt = executorsStorage.get(payload.executorId);
-    if ("None" in executorOpt) {
-      return Err("Executor not found.");
-    }
-
-    will.executorId = payload.executorId;
-    willsStorage.insert(payload.willId, will);
-    return Ok(null);
-  }),
+  ),
 
   // Get a user by ID
   getUser: query([text], Result(User, text), (userId) => {
